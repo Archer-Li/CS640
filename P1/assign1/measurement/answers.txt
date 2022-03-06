@@ -1,0 +1,19 @@
+Q2:
+prediction: we believe the latency will be sum of 3 switches and throughput will be the smallest one among the 3.
+So, latency should be 80 + 20 + 60 = 160 ms, throughput should be min(20,40,30) = 20 mbps.
+
+result: 
+The throughput is 20Mbps. We believe that the latency and throughput will be determined by the slowest switch. The slowest switch is L1, which have the throughput of about 20 Mbps. Thus the throughput between h1 and h4 will be limited to about 20 Mbps. However the latency will be the summation of these three switches, which is about 80 + 20 + 60 =  160 (ms).
+
+Q3
+predict: two pairs: 160ms and 20/2 = 10 mbps
+	 three pairs: 160ms and 20/3 = 6.5 mbps
+
+real: the latency run 2 pairs and three pairs are the same. which is 160 ms, as fast as one pair.
+
+the throughput for 2 pair is: 17.376 and 6.968 Mpbs, and the throughput for 3 pairs is: 13.976, 4.888, 4.536 Mpbs. Due to my typing speed, the faster one is usually the first pair running Iperfer. We believe due to this issue, the first pair will start to take most throughput, the rest pairs will only able to share whats left. This might because the rules ofmininet congestion control to priortize the first task. They all sum up to around 20mbps which indicates they share the bandwidth.
+
+Q4
+predict: since the throughput for L2 is 40 mbps, and the path from h1 to h4 are only takes 20 mbps. Thus I believe that the through put will be no effect when running h1 to h4, as for h5 to h6, the throughput will be whats left from L2, which should be around 20 Mbps for both connection. The latency will not be affact by the simultaneous use, they will still be the sum of all swtiches in the path, h1-h4 is 160ms and h5-h6 is 40 ms.
+
+real:As predict, the throughput for h1-h4 are 18 mbps, h5-h6 are 22 mbps. But due to my typing speed, the speed diviation can be ignore. The latency are the same: 160ms and 40ms.

@@ -84,15 +84,18 @@ public class Router extends Device {
     public void handlePacket(Ethernet etherPacket, Iface inIface) {
         System.out.println("*** -> Received packet: " +
                 etherPacket.toString().replace("\n", "\n\t"));
-        
+
         if (etherPacket.getEtherType() == Ethernet.TYPE_IPv4) {
             // verify check sum
             var header = (IPv4) etherPacket.getPayload();
             var oldCheckSum = header.getChecksum();
             header.resetChecksum();
             var bytes = header.serialize();
+
             // zeroed checksum
             header.deserialize(bytes, 0, bytes.length);
+
+
             if (header.getChecksum() != oldCheckSum) {
                 return;
             }
@@ -103,6 +106,9 @@ public class Router extends Device {
                 return;
             }
 
+            header.resetChecksum();
+
+            // drop packet if it is to router interfaces
             for (var face : interfaces.values()) {
                 if (header.getDestinationAddress() == face.getIpAddress()) {
                     return;
@@ -114,7 +120,9 @@ public class Router extends Device {
                 return;
             }
 
-            etherPacket.setSourceMACAddress(routeEntry.getInterface().getMacAddress().toBytes());
+            if (routeEntry.getInterface() == inIface) {
+                return;
+            }
 
             var dest = routeEntry.getGatewayAddress() != 0 ? routeEntry.getGatewayAddress() : routeEntry.getDestinationAddress();
 
@@ -123,7 +131,9 @@ public class Router extends Device {
                 return;
             }
 
+            etherPacket.setSourceMACAddress(routeEntry.getInterface().getMacAddress().toBytes());
             etherPacket.setDestinationMACAddress(arpEntry.getMac().toBytes());
+
             this.sendPacket(etherPacket, routeEntry.getInterface());
         }
     }

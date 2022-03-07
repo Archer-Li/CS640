@@ -105,7 +105,7 @@ public class Router extends Device {
                 return;
             }
 
-            etherPacket.setPayload(header);
+            header.resetChecksum();
 
             // drop packet if it is to router interfaces
             for (var face : interfaces.values()) {
@@ -115,6 +115,7 @@ public class Router extends Device {
             }
 
             var routeEntry = this.routeTable.lookup(header.getDestinationAddress());
+
             if (routeEntry == null) {
                 return;
             }
@@ -123,9 +124,9 @@ public class Router extends Device {
                 return;
             }
 
-            var dest = routeEntry.getGatewayAddress() != 0 ? routeEntry.getGatewayAddress() : routeEntry.getDestinationAddress();
+            var nextHop = routeEntry.getGatewayAddress() != 0 ? routeEntry.getGatewayAddress() : header.getDestinationAddress();
 
-            var arpEntry = this.arpCache.lookup(dest);
+            var arpEntry = this.arpCache.lookup(nextHop);
             if (arpEntry == null) {
                 return;
             }
@@ -133,7 +134,10 @@ public class Router extends Device {
             etherPacket.setSourceMACAddress(routeEntry.getInterface().getMacAddress().toBytes());
             etherPacket.setDestinationMACAddress(arpEntry.getMac().toBytes());
 
-            this.sendPacket(etherPacket, routeEntry.getInterface());
+            System.out.println(routeEntry.getInterface());
+            if(!this.sendPacket(etherPacket, routeEntry.getInterface())){
+                System.out.println("send packet error");
+            }
         }
     }
 }

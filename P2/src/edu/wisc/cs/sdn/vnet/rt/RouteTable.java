@@ -47,7 +47,7 @@ public class RouteTable {
             for (var entry : this.entries) {
                 var mask = entry.getMaskAddress();
                 if ((ip & mask) == (entry.getDestinationAddress() & mask)) {
-                    if (match == null || entry.getMaskAddress() > match.getMaskAddress()) {
+                    if (match == null || mask > match.getMaskAddress()) {
                         match = entry;
                     }
                 }

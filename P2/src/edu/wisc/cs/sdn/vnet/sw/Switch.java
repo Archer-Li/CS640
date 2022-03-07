@@ -7,11 +7,12 @@ import edu.wisc.cs.sdn.vnet.Iface;
 import net.floodlightcontroller.packet.MACAddress;
 
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author Aaron Gember-Jacobson
  */
-public class Switch extends Device {
+public class Switch extends Device implements Runnable {
     class Entry {
         private MACAddress mac;
         private Iface iface;
@@ -48,7 +49,7 @@ public class Switch extends Device {
         }
     }
 
-    private final HashMap<MACAddress, Entry> switchTable;
+    private final ConcurrentHashMap<MACAddress, Entry> switchTable;
 
     /**
      * Creates a router for a specific host.
@@ -57,7 +58,28 @@ public class Switch extends Device {
      */
     public Switch(String host, DumpFile logfile) {
         super(host, logfile);
-        this.switchTable = new HashMap<>();
+        this.switchTable = new ConcurrentHashMap<>();
+        var thread = new Thread(this);
+        thread.start();
+    }
+
+    public void run() {
+        try {
+            while (true) {
+                if (this.switchTable != null) {
+                    for (var entry : this.switchTable.entrySet()) {
+                        if (this.timeOut(entry.getValue().getTime())) {
+                            this.switchTable.remove(entry.getKey());
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private boolean timeOut(long begin) {
+        return System.currentTimeMillis() - begin >= 10000L;
     }
 
     /**
@@ -74,7 +96,7 @@ public class Switch extends Device {
         if (this.switchTable.containsKey(destMac)) {
             var entry = this.switchTable.get(destMac);
             // if it's time out, remove it, otherwise send packet
-            if (System.currentTimeMillis() - entry.time >= 10000L) {
+            if (this.timeOut(entry.getTime())) {
                 this.switchTable.remove(destMac);
             } else {
                 sendPacket(etherPacket, entry.getIface());

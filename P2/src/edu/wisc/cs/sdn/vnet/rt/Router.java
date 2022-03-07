@@ -92,7 +92,6 @@ public class Router extends Device {
             header.resetChecksum();
             var bytes = header.serialize();
 
-            // zeroed checksum
             header.deserialize(bytes, 0, bytes.length);
 
 
@@ -106,7 +105,7 @@ public class Router extends Device {
                 return;
             }
 
-            header.resetChecksum();
+            etherPacket.setPayload(header);
 
             // drop packet if it is to router interfaces
             for (var face : interfaces.values()) {

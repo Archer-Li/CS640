@@ -348,8 +348,7 @@ public class Router extends Device {
                 }
             }
             if (isChanged) {
-                this.sendUnsolicitedResponse();
-                System.out.println("Routing table changed");
+                this.SendUnsolicitedResponse();
             }
         }
     }
@@ -365,14 +364,14 @@ public class Router extends Device {
             int mask = face.getSubnetMask();
             int ip = face.getIpAddress() & mask;
             this.routeTable.insert(ip, 0, mask, face);
-            this.ripTable.put(new RipKey(ip, mask), new RipEntry(0, 0));
+            this.ripTable.put(new RipKey(ip, mask), new RipEntry(0, -1));
             this.sendRIP(face, IPv4.toIPv4Address("240.0.0.9"), Router.broadcastMac, RIPv2.COMMAND_REQUEST);
         }
         this.timer.schedule(new SendUnsolicitedResponse(), 0, 10 * 1000);
         this.timer.schedule(new RemoveOutdatedRip(), 0, 30 * 1000);
     }
 
-    private void sendUnsolicitedResponse() {
+    private void SendUnsolicitedResponse() {
         for (var face : interfaces.values()) {
             this.sendRIP(face, IPv4.toIPv4Address("240.0.0.9"), Router.broadcastMac, RIPv2.COMMAND_RESPONSE);
         }
@@ -420,7 +419,7 @@ public class Router extends Device {
     class SendUnsolicitedResponse extends TimerTask {
         @Override
         public void run() {
-            sendUnsolicitedResponse();
+            SendUnsolicitedResponse();
         }
     }
 
@@ -433,7 +432,7 @@ public class Router extends Device {
                 var iter = ripTable.entrySet().iterator();
                 while (iter.hasNext()) {
                     var entry = iter.next();
-                    if (currentTime - entry.getValue().getTimeStamp() >= 30 * 1000) {
+                    if (entry.getValue().getTimeStamp() != -1 && currentTime - entry.getValue().getTimeStamp() >= 30 * 1000) {
                         routeTable.remove(entry.getKey().ip, entry.getKey().mask);
                         iter.remove();
                         isChanged = true;
@@ -441,7 +440,7 @@ public class Router extends Device {
                     }
                 }
                 if (isChanged) {
-                    sendUnsolicitedResponse();
+                    SendUnsolicitedResponse();
                 }
             }
         }

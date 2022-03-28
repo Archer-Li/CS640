@@ -76,7 +76,7 @@ public class Router extends Device {
     /**
      * Routing table for the router
      */
-    private RouteTable routeTable;
+    private final RouteTable routeTable;
 
     /**
      * Rip entry table
@@ -324,20 +324,19 @@ public class Router extends Device {
         var rip = (RIPv2) udp.getPayload();
 
         if (rip.getCommand() == RIPv2.COMMAND_REQUEST) {
-            var dest = this.nextHop(ip.getSourceAddress());
-            if (dest == null) {
-                return;
-            }
-            this.sendRIP(inIface, ip.getSourceAddress(), dest.toBytes(), RIPv2.COMMAND_RESPONSE);
-            System.out.println("RIPv2 request received from " + ip.getSourceAddress() + " to " + ip.getDestinationAddress());
+            this.sendRIP(inIface, ip.getSourceAddress(), etherPacket.getSourceMACAddress(), RIPv2.COMMAND_RESPONSE);
+            System.out.println("RIPv2 request received from " + IPv4.fromIPv4Address(ip.getSourceAddress()) + " to " + IPv4.fromIPv4Address(ip.getDestinationAddress()));
         }
         if (rip.getCommand() == RIPv2.COMMAND_RESPONSE) {
-            System.out.println("RIPv2 response received from " + ip.getSourceAddress() + " to " + ip.getDestinationAddress());
+            System.out.println("RIPv2 response received from " + IPv4.fromIPv4Address(ip.getSourceAddress()) + " to " + IPv4.fromIPv4Address(ip.getDestinationAddress()));
             boolean isChanged = false;
             for (var entry : rip.getEntries()) {
                 var key = new RipKey(entry.getAddress(), entry.getSubnetMask());
-                var metric = entry.getMetric() + 1;
+                var metric = Integer.max(entry.getMetric() + 1, 16);
                 var ripEntry = this.ripTable.get(key);
+                if (ripEntry != null) {
+                    ripEntry.setTimeStamp(System.currentTimeMillis());
+                }
                 if (ripEntry == null || metric < ripEntry.getMetric()) {
                     this.ripTable.put(key, new RipEntry(metric, System.currentTimeMillis()));
                     if (this.routeTable.lookup(entry.getAddress() & entry.getSubnetMask()) != null) {
@@ -398,13 +397,16 @@ public class Router extends Device {
         var rip = new RIPv2();
         rip.setCommand(command);
         if (command == RIPv2.COMMAND_RESPONSE) {
-            for (var entry : this.routeTable.getEntries()) {
-                var ripV2 = new RIPv2Entry();
-                ripV2.setAddress(entry.getDestinationAddress());
-                ripV2.setMetric(ripTable.get(new RipKey(entry.getDestinationAddress(), entry.getMaskAddress())).metric);
-                ripV2.setSubnetMask(entry.getMaskAddress());
-                ripV2.setNextHopAddress(inIface.getIpAddress());
-                rip.addEntry(ripV2);
+            synchronized (this.routeTable) {
+                for (var entry : this.routeTable.getEntries()) {
+                    var ripV2 = new RIPv2Entry();
+                    ripV2.setAddress(entry.getDestinationAddress());
+                    var key = new RipKey(entry.getDestinationAddress(), entry.getMaskAddress());
+                    ripV2.setMetric(ripTable.get(key).getMetric());
+                    ripV2.setSubnetMask(entry.getMaskAddress());
+                    ripV2.setNextHopAddress(inIface.getIpAddress());
+                    rip.addEntry(ripV2);
+                }
             }
         }
 
@@ -431,7 +433,7 @@ public class Router extends Device {
                 var iter = ripTable.entrySet().iterator();
                 while (iter.hasNext()) {
                     var entry = iter.next();
-                    if (currentTime - entry.getValue().timeStamp > 30 * 1000) {
+                    if (entry.getValue().getTimeStamp() != 0 && currentTime - entry.getValue().getTimeStamp() >= 30 * 1000) {
                         routeTable.remove(entry.getKey().ip, entry.getKey().mask);
                         iter.remove();
                         isChanged = true;

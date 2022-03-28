@@ -157,8 +157,9 @@ public class Router extends Device {
         if (etherPacket.getEtherType() == Ethernet.TYPE_IPv4) {
             // verify check sum
             var header = (IPv4) etherPacket.getPayload();
-            if (header.getPayload() instanceof UDP && ((UDP) header.getPayload()).getDestinationPort() == 520) {
+            if (header.getPayload() instanceof UDP && ((UDP) header.getPayload()).getDestinationPort() == UDP.RIP_PORT) {
                 handleRIP(etherPacket, inIface);
+                System.out.println("*** <- RIP packet handled");
                 return;
             }
 
@@ -328,7 +329,10 @@ public class Router extends Device {
                 return;
             }
             this.sendRIP(inIface, ip.getSourceAddress(), dest.toBytes(), RIPv2.COMMAND_RESPONSE);
-        } else {
+            System.out.println("RIPv2 request received from " + ip.getSourceAddress() + " to " + ip.getDestinationAddress());
+        }
+        if (rip.getCommand() == RIPv2.COMMAND_RESPONSE) {
+            System.out.println("RIPv2 response received from " + ip.getSourceAddress() + " to " + ip.getDestinationAddress());
             boolean isChanged = false;
             for (var entry : rip.getEntries()) {
                 var key = new RipKey(entry.getAddress(), entry.getSubnetMask());
@@ -345,6 +349,7 @@ public class Router extends Device {
             }
             if (isChanged) {
                 this.sendUnsolicitedResponse();
+                System.out.println("Routing table changed");
             }
         }
     }
@@ -385,7 +390,7 @@ public class Router extends Device {
         udp.setSourcePort(UDP.RIP_PORT);
 
         var newIp = new IPv4();
-        newIp.setTtl((byte) 10);
+        newIp.setTtl((byte) 64);
         newIp.setProtocol(IPv4.PROTOCOL_UDP);
         newIp.setSourceAddress(inIface.getIpAddress());
         newIp.setDestinationAddress(destIP);

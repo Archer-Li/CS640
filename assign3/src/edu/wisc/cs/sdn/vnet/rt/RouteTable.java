@@ -244,4 +244,8 @@ public class RouteTable {
             return result;
         }
     }
+
+    public List<RouteEntry> getEntries() {
+        return entries;
+    }
 }

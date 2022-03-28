@@ -98,6 +98,7 @@ public class Router extends Device {
         super(host, logfile);
         this.routeTable = new RouteTable();
         this.arpCache = new ArpCache();
+        this.timer = new Timer();
     }
 
     /**
@@ -185,7 +186,7 @@ public class Router extends Device {
                 if (header.getDestinationAddress() == face.getIpAddress()) {
                     var protocol = header.getProtocol();
                     if (protocol == IPv4.PROTOCOL_TCP || protocol == IPv4.PROTOCOL_UDP) {
-                        this.sendICMP(etherPacket, inIface, (byte) 11, (byte) 3);
+                        this.sendICMP(etherPacket, inIface, (byte) 3, (byte) 3);
                     }
                     if (protocol == IPv4.PROTOCOL_ICMP) {
                         var icmp = (ICMP) header.getPayload();
@@ -218,6 +219,7 @@ public class Router extends Device {
 
             etherPacket.setSourceMACAddress(routeEntry.getInterface().getMacAddress().toBytes());
             etherPacket.setDestinationMACAddress(arpEntry.getMac().toBytes());
+            this.sendPacket(etherPacket, routeEntry.getInterface());
         }
     }
 
@@ -232,23 +234,24 @@ public class Router extends Device {
         newIp.setSourceAddress(outIface.getIpAddress());
         newIp.setDestinationAddress(ipv4.getSourceAddress());
         newIp.setProtocol(IPv4.PROTOCOL_ICMP);
+        packet.setPayload(newIp);
 
         var icmp = new ICMP();
         icmp.setIcmpType(type);
         icmp.setIcmpCode(code);
+        newIp.setPayload(icmp);
 
         var len = ipv4.getHeaderLength() * 4;
         var bytes = new byte[4 + len + 8];
         Arrays.fill(bytes, (byte) 0);
         var oriBytes = ipv4.serialize();
-        System.arraycopy(oriBytes, 0, bytes, 3, len + 8);
+        System.arraycopy(oriBytes, 0, bytes, 4, len + 8);
 
         var data = new Data(bytes);
-        packet.setPayload(newIp);
-        newIp.setPayload(icmp);
+
         icmp.setPayload(data);
 
-        var mac = this.nextHop(ipv4.getDestinationAddress());
+        var mac = this.nextHop(ipv4.getSourceAddress());
         if (mac == null) {
             return;
         }
@@ -271,9 +274,6 @@ public class Router extends Device {
     }
 
     private void sendEcho(Ethernet etherPacket, Iface outIface) {
-        if (!hasDestAddress(etherPacket)) {
-            return;
-        }
         var ipv4 = (IPv4) etherPacket.getPayload();
         var packet = new Ethernet();
         packet.setSourceMACAddress(outIface.getMacAddress().toBytes());

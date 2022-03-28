@@ -436,7 +436,7 @@ public class Router extends Device {
                         routeTable.remove(entry.getKey().ip, entry.getKey().mask);
                         iter.remove();
                         isChanged = true;
-                        System.out.println("remove timeout entry");
+                        System.out.println("remove timeout entry" + IPv4.fromIPv4Address(entry.getKey().ip));
                     }
                 }
                 if (isChanged) {

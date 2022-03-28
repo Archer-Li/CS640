@@ -343,6 +343,7 @@ public class Router extends Device {
                     if (this.routeTable.lookup(entry.getAddress() & entry.getSubnetMask()) != null) {
                         routeTable.remove(entry.getAddress(), entry.getSubnetMask());
                     }
+                    System.out.println("insert to route table: " + entry.getAddress() + "/" + entry.getSubnetMask() + " " + metric);
                     routeTable.insert(entry.getAddress(), entry.getNextHopAddress(), entry.getSubnetMask(), inIface);
                     isChanged = true;
                 }
@@ -366,8 +367,7 @@ public class Router extends Device {
             int ip = face.getIpAddress() & mask;
             this.routeTable.insert(ip, 0, mask, face);
             this.ripTable.put(new RipKey(ip, mask), new RipEntry(0, 0));
-            var ripPacket = newRipPacket(face, IPv4.toIPv4Address("240.0.0.9"), Router.broadcastMac, RIPv2.COMMAND_REQUEST);
-            this.sendPacket(ripPacket, face);
+            this.sendRIP(face, IPv4.toIPv4Address("240.0.0.9"), Router.broadcastMac, RIPv2.COMMAND_REQUEST);
         }
         this.timer.schedule(new SendUnsolicitedResponse(), 0, 10 * 1000);
         this.timer.schedule(new RemoveOutdatedRip(), 0, 30 * 1000);

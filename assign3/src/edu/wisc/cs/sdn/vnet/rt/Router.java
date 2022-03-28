@@ -23,6 +23,22 @@ public class Router extends Device {
             this.metric = metric;
             this.timeStamp = timeStamp;
         }
+
+        public void setMetric(int metric) {
+            this.metric = metric;
+        }
+
+        public int getMetric() {
+            return metric;
+        }
+
+        public long getTimeStamp() {
+            return timeStamp;
+        }
+
+        public void setTimeStamp(long timeStamp) {
+            this.timeStamp = timeStamp;
+        }
     }
 
     static class RipKey {
@@ -39,8 +55,7 @@ public class Router extends Device {
         }
 
         public boolean equals(Object o) {
-            if (o instanceof RipKey) {
-                RipKey k = (RipKey) o;
+            if (o instanceof RipKey k) {
                 return (this.ip == k.ip && this.mask == k.mask);
             }
             return false;
@@ -51,7 +66,7 @@ public class Router extends Device {
         }
     }
 
-    private final static byte[] ripMac = {
+    private final static byte[] broadcastMac = {
             (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF
     };
 
@@ -157,7 +172,6 @@ public class Router extends Device {
             }
 
             header.setTtl((byte) (header.getTtl() - 1));
-            // TODO enerate an ICMP time exceeded message prior to dropping the packet whose TTL field is 0. ICMP type and code for this message is 11 and 0, respectively.
 
             if (header.getTtl() == 0) {
                 this.sendICMP(etherPacket, inIface, (byte) 11, (byte) 0);
@@ -303,12 +317,40 @@ public class Router extends Device {
 
     // handle RIP packet
     private void handleRIP(Ethernet etherPacket, Iface inIface) {
-        var rip = (RIPv2) etherPacket.getPayload();
+        var ip = (IPv4) etherPacket.getPayload();
+        var udp = (UDP) ip.getPayload();
+        var rip = (RIPv2) udp.getPayload();
+
         if (rip.getCommand() == RIPv2.COMMAND_REQUEST) {
-
+            var dest = this.nextHop(ip.getSourceAddress());
+            if (dest == null) {
+                return;
+            }
+            this.sendRIP(inIface, ip.getSourceAddress(), dest.toBytes(), RIPv2.COMMAND_RESPONSE);
         } else {
-
+            boolean isChanged = false;
+            for (var entry : rip.getEntries()) {
+                var key = new RipKey(entry.getAddress(), entry.getSubnetMask());
+                var metric = entry.getMetric() + 1;
+                var ripEntry = this.ripTable.get(key);
+                if (ripEntry == null || metric < ripEntry.getMetric()) {
+                    this.ripTable.put(key, new RipEntry(metric, System.currentTimeMillis()));
+                    if (this.routeTable.lookup(entry.getAddress() & entry.getSubnetMask()) != null) {
+                        routeTable.remove(entry.getAddress(), entry.getSubnetMask());
+                    }
+                    routeTable.insert(entry.getAddress(), entry.getNextHopAddress(), entry.getSubnetMask(), inIface);
+                    isChanged = true;
+                }
+            }
+            if (isChanged) {
+                this.sendUnsolicitedResponse();
+            }
         }
+    }
+
+    private void sendRIP(Iface inIface, int destIp, byte[] destAddr, byte command) {
+        var rip = this.newRipPacket(inIface, destIp, destAddr, command);
+        this.sendPacket(rip, inIface);
     }
 
     // send RIP packet to interfaces and update riptable
@@ -318,7 +360,7 @@ public class Router extends Device {
             int ip = face.getIpAddress() & mask;
             this.routeTable.insert(ip, 0, mask, face);
             this.ripTable.put(new RipKey(ip, mask), new RipEntry(0, 0));
-            var ripPacket = newRipPacket(face, IPv4.toIPv4Address("240.0.0.9"), Router.ripMac, RIPv2.COMMAND_REQUEST);
+            var ripPacket = newRipPacket(face, IPv4.toIPv4Address("240.0.0.9"), Router.broadcastMac, RIPv2.COMMAND_REQUEST);
             this.sendPacket(ripPacket, face);
         }
         this.timer.schedule(new SendUnsolicitedResponse(), 0, 10 * 1000);
@@ -327,8 +369,7 @@ public class Router extends Device {
 
     private void sendUnsolicitedResponse() {
         for (var face : interfaces.values()) {
-            var ripPacket = newRipPacket(face, IPv4.toIPv4Address("240.0.0.9"), Router.ripMac, RIPv2.COMMAND_RESPONSE);
-            this.sendPacket(ripPacket, face);
+            this.sendRIP(face, IPv4.toIPv4Address("240.0.0.9"), Router.broadcastMac, RIPv2.COMMAND_RESPONSE);
         }
     }
 
@@ -380,13 +421,18 @@ public class Router extends Device {
         public void run() {
             var currentTime = System.currentTimeMillis();
             synchronized (ripTable) {
+                boolean isChanged = false;
                 var iter = ripTable.entrySet().iterator();
                 while (iter.hasNext()) {
                     var entry = iter.next();
                     if (currentTime - entry.getValue().timeStamp > 30 * 1000) {
                         routeTable.remove(entry.getKey().ip, entry.getKey().mask);
                         iter.remove();
+                        isChanged = true;
                     }
+                }
+                if (isChanged) {
+                    sendUnsolicitedResponse();
                 }
             }
         }

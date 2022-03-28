@@ -55,7 +55,8 @@ public class Router extends Device {
         }
 
         public boolean equals(Object o) {
-            if (o instanceof RipKey k) {
+            if (o instanceof RipKey) {
+                var k = (RipKey) o;
                 return (this.ip == k.ip && this.mask == k.mask);
             }
             return false;

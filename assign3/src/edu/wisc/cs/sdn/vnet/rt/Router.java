@@ -433,10 +433,11 @@ public class Router extends Device {
                 var iter = ripTable.entrySet().iterator();
                 while (iter.hasNext()) {
                     var entry = iter.next();
-                    if (entry.getValue().getTimeStamp() != 0 && currentTime - entry.getValue().getTimeStamp() >= 30 * 1000) {
+                    if (currentTime - entry.getValue().getTimeStamp() >= 30 * 1000) {
                         routeTable.remove(entry.getKey().ip, entry.getKey().mask);
                         iter.remove();
                         isChanged = true;
+                        System.out.println("remove timeout entry");
                     }
                 }
                 if (isChanged) {

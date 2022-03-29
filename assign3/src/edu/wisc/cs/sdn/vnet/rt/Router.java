@@ -330,25 +330,24 @@ public class Router extends Device {
         if (rip.getCommand() == RIPv2.COMMAND_RESPONSE) {
             System.out.println("RIPv2 response received from " + IPv4.fromIPv4Address(ip.getSourceAddress()) + " to " + IPv4.fromIPv4Address(ip.getDestinationAddress()));
             boolean isChanged = false;
-            for (var entry : rip.getEntries()) {
-                var key = new RipKey(entry.getAddress(), entry.getSubnetMask());
-                var metric = Integer.max(entry.getMetric() + 1, 16);
-                var ripEntry = this.ripTable.get(key);
-                if (ripEntry != null) {
-                    ripEntry.setTimeStamp(System.currentTimeMillis());
-                }
-                if (ripEntry == null || metric < ripEntry.getMetric()) {
-                    this.ripTable.put(key, new RipEntry(metric, System.currentTimeMillis()));
-                    if (this.routeTable.lookup(entry.getAddress() & entry.getSubnetMask()) != null) {
-                        routeTable.remove(entry.getAddress(), entry.getSubnetMask());
+            synchronized (this.ripTable) {
+                for (var entry : rip.getEntries()) {
+                    var key = new RipKey(entry.getAddress(), entry.getSubnetMask());
+                    var metric = Integer.max(entry.getMetric() + 1, 16);
+                    var ripEntry = this.ripTable.get(key);
+                    if (ripEntry == null || metric < ripEntry.getMetric()) {
+                        this.ripTable.put(key, new RipEntry(metric, System.currentTimeMillis()));
+                        if (this.routeTable.lookup(entry.getAddress() & entry.getSubnetMask()) != null) {
+                            routeTable.remove(entry.getAddress(), entry.getSubnetMask());
+                        }
+                        System.out.println("insert to route table: " + entry.getAddress() + "/" + entry.getSubnetMask() + " " + metric);
+                        routeTable.insert(entry.getAddress(), entry.getNextHopAddress(), entry.getSubnetMask(), inIface);
+                        isChanged = true;
                     }
-                    System.out.println("insert to route table: " + entry.getAddress() + "/" + entry.getSubnetMask() + " " + metric);
-                    routeTable.insert(entry.getAddress(), entry.getNextHopAddress(), entry.getSubnetMask(), inIface);
-                    isChanged = true;
                 }
-            }
-            if (isChanged) {
-                this.SendUnsolicitedResponse();
+                if (isChanged) {
+                    this.SendUnsolicitedResponse();
+                }
             }
         }
     }
@@ -426,13 +425,12 @@ public class Router extends Device {
     class RemoveOutdatedRip extends TimerTask {
         @Override
         public void run() {
-            var currentTime = System.currentTimeMillis();
             synchronized (ripTable) {
                 boolean isChanged = false;
                 var iter = ripTable.entrySet().iterator();
                 while (iter.hasNext()) {
                     var entry = iter.next();
-                    if (entry.getValue().getTimeStamp() != -1 && currentTime - entry.getValue().getTimeStamp() >= 30 * 1000) {
+                    if (entry.getValue().getTimeStamp() != -1 && System.currentTimeMillis() - entry.getValue().getTimeStamp() >= 30 * 1000) {
                         routeTable.remove(entry.getKey().ip, entry.getKey().mask);
                         iter.remove();
                         isChanged = true;

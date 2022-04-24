@@ -134,10 +134,7 @@ public class Router extends Device {
             etherPacket.setSourceMACAddress(routeEntry.getInterface().getMacAddress().toBytes());
             etherPacket.setDestinationMACAddress(arpEntry.getMac().toBytes());
 
-            System.out.println(routeEntry.getInterface());
-            if(!this.sendPacket(etherPacket, routeEntry.getInterface())){
-                System.out.println("send packet error");
-            }
+            this.sendPacket(etherPacket, routeEntry.getInterface());
         }
     }
 }

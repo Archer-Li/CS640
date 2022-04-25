@@ -1,4 +1,4 @@
-public class receiver {
+public class TCPReceiver {
     private int srcPort;
     private int destPort;
 

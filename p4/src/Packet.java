@@ -61,24 +61,18 @@ public class Packet {
         return packet.array();
     }
 
-    public int addCheckSum(int adder) {
-        this.checksum = this.bitwiseAdd(this.checksum, adder);
+    public int addChecksum(int checksum) {
+        this.checksum = checksumHelper(checksum, this.checksum);
         return this.checksum;
     }
 
-    private static int bitwiseAdd(int n1, int n2) {
-        int x = n1, y = n2;
-        int xor, and, temp;
-        and = x & y;
-        xor = x ^ y;
-
-        while (and != 0) {
-            and <<= 1;
-            temp = xor ^ and;
-            and &= xor;
-            xor = temp;
+    private static int checksumHelper(int n1, int n2) {
+        int sum = n1 + n2;
+        String binarySum = Integer.toBinaryString(sum);
+        if (binarySum.length() > 16) {
+            return Integer.parseInt(binarySum.substring(binarySum.length() - 16)) + Integer.parseInt(binarySum.substring(0, binarySum.length() - 16));
         }
-        return xor;
+        return sum;
     }
 
     private int combineLengthNFlags() {

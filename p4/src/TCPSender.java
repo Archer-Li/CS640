@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Semaphore;
 
-public class TCPSender {
+public class wTCPSender {
     private final int MTU = 1500;
     private String fileName;
     private int windowSize;
@@ -119,6 +121,7 @@ public class TCPSender {
             return true;
         }
 
+
         @Override
         public void run() {
             try {
@@ -161,18 +164,19 @@ public class TCPSender {
             }
         }
 
-        int curOffset = 0; //current position in the file
+
 
 
         @Override
         public void run() {
             try {
+                int curOffset = 0; //current position in the file
                 while (!finished) {
                     // enough window to send data
                     if (payloadSize + nextSeq < windowSize + prevAck + 1) {
                         mutex.acquire();
                         var bytes = new byte[payloadSize];
-                        var length = this.file.read(bytes, 0, payloadSize);
+                        var length = this.file.read(bytes, curOffset, payloadSize);
 
                         Packet dataPacket;
                         if (length <= 0) {
@@ -183,6 +187,7 @@ public class TCPSender {
                         }
                         sendPacket(dataPacket);
                         updateSend(dataPacket);
+                        curOffset += length;
                         mutex.release();
                     }
                 }
